@@ -29,8 +29,8 @@ func init() {
 func recorder() {
 	for {
 		select {
-		case p := <-logs:
-			fmt.Printf("%+v\n", p)
+		case log := <-logs:
+			fmt.Printf("%+v\n", log)
 		}
 	}
 }
