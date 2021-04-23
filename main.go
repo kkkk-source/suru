@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/tls"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -13,36 +12,36 @@ import (
 	gomail "gopkg.in/mail.v2"
 )
 
-const timeToSleep = 200 * time.Millisecond
+const timeToSleep = 10000 * time.Millisecond
 
 type GPU struct {
-	Name      string `json:"name"`
-	OnSale    bool   `json:"onSale"`
-	Active    bool   `json:"active"`
-	Orderable string `json:"orderable"`
+	Name   string `json:"name"`
+	OnSale bool   `json:"onSale"`
 }
 
 var (
 	apiURL string
-	logs   = make(chan interface{})
+	strs   = make(chan string)
+	gpus   = make(chan GPU)
 	emails = make(chan struct{})
 )
 
 func init() {
 	err := godotenv.Load(".env")
 	if err != nil {
-		log.Fatal("Error loading .env file")
+		log.Fatal("error loading .env file")
 	}
-	apiURL = os.Getenv("API_URL")
 	go sender()
-	go recorder()
+	go logger()
 }
 
-func recorder() {
+func logger() {
 	for {
 		select {
-		case log := <-logs:
-			fmt.Printf("%+v\n", log)
+		case gpu := <-gpus:
+			log.Printf("name: %s ---> onSale: %t\n", gpu.Name, gpu.OnSale)
+		case str := <-strs:
+			log.Println(str)
 		}
 	}
 }
@@ -55,48 +54,47 @@ func sender() {
 	m := gomail.NewMessage()
 	m.SetHeader("From", emailSender)
 	m.SetHeader("To", emailReceiver)
-	m.SetHeader("Subject", "go: gpu available")
-	m.SetBody("text/plain", "go: gpu available")
+	m.SetHeader("Subject", "!!! GPU AVAILABLE !!!")
+	// TODO: send the product url
+	m.SetBody("text/plain", "!!! GPU AVAILABLE !!!")
 
 	d := gomail.NewDialer("smtp.gmail.com", 587, emailSender, passwSender)
-
-	// This is only needed when SSL/TLS certificate is not valid on server.
-	// In production this should be set to false.
 	d.TLSConfig = &tls.Config{ServerName: "smtp.gmail.com", InsecureSkipVerify: false}
 
 	for {
 		select {
 		case <-emails:
 			if err := d.DialAndSend(m); err != nil {
-				logs <- err.Error()
+				strs <- err.Error()
 				continue
 			}
-			logs <- "Email Sent Successfully"
+			strs <- "email sent successfully"
 		}
 	}
 }
 
 func main() {
+	apiURL = os.Getenv("API_URL")
 	var gpu GPU
 	for {
 		func() {
 			resp, err := http.Get(apiURL)
 			if err != nil {
-				logs <- err.Error()
+				strs <- err.Error()
 				return
 			}
 			defer resp.Body.Close()
 
 			err = json.NewDecoder(resp.Body).Decode(&gpu)
 			if err != nil {
-				logs <- err.Error()
+				strs <- err.Error()
 				return
 			}
 
 			if gpu.OnSale {
 				emails <- struct{}{}
 			}
-			logs <- gpu
+			gpus <- gpu
 		}()
 		time.Sleep(timeToSleep)
 	}
