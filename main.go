@@ -1,106 +1,86 @@
 package main
 
 import (
-	"crypto/tls"
 	"encoding/json"
+	"flag"
 	"log"
 	"net/http"
-	"os"
 	"time"
-
-	"github.com/joho/godotenv"
-	gomail "gopkg.in/mail.v2"
 )
-
-const timeToSleep = 10000 * time.Millisecond
 
 type GPU struct {
 	Name   string `json:"name"`
 	OnSale bool   `json:"onSale"`
 }
 
-var (
-	apiURL string
-	strs   = make(chan string)
-	gpus   = make(chan GPU)
-	emails = make(chan struct{})
-)
-
-func init() {
-	err := godotenv.Load(".env")
-	if err != nil {
-		log.Fatal("error loading .env file")
-	}
-	go sender()
-	go logger()
-}
-
-func logger() {
-	file, err := os.OpenFile("log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.SetOutput(file)
-
-	for {
-		select {
-		case gpu := <-gpus:
-			log.Printf("name: %s ---> onSale: %t\n", gpu.Name, gpu.OnSale)
-		case str := <-strs:
-			log.Println(str)
-		}
-	}
-}
-
-func sender() {
-	emailReceiver := os.Getenv("TO_EMAIL")
-	emailSender := os.Getenv("FROM_EMAIL")
-	passwSender := os.Getenv("FROM_EMAIL_PASSWORD")
-
-	m := gomail.NewMessage()
-	m.SetHeader("From", emailSender)
-	m.SetHeader("To", emailReceiver)
-	m.SetHeader("Subject", "!!! GPU AVAILABLE !!!")
-	// TODO: send the product url
-	m.SetBody("text/plain", "!!! GPU AVAILABLE !!!")
-
-	d := gomail.NewDialer("smtp.gmail.com", 587, emailSender, passwSender)
-	d.TLSConfig = &tls.Config{ServerName: "smtp.gmail.com", InsecureSkipVerify: false}
-
-	for {
-		select {
-		case <-emails:
-			if err := d.DialAndSend(m); err != nil {
-				strs <- err.Error()
-				continue
-			}
-			strs <- "email sent successfully"
-		}
-	}
-}
+const timeToSleep = 10 * time.Second
 
 func main() {
-	apiURL = os.Getenv("API_URL")
+	log.Println("starting suru ...")
+
+	var (
+		apiURL       = flag.String("apiUrl", "", "Specify the url to request to.")
+		fromEmail    = flag.String("fromEmail", "", "Set the email messages sender.")
+		fromEmailKey = flag.String("fromEmailKey", "", "Set the email messages sender password.")
+		toEmail      = flag.String("toEmail", "", "Set the email messages receiver.")
+		logFile      = flag.String("logFile", "out", "Specify a log file.")
+		smtpHost     = flag.String("smtpHost", "smtp.gmail.com", "Specify the smtp host name to send messages.")
+		smtpPort     = flag.Int("smtpPort", 587, "Specify the smtp port to send messages.")
+	)
+	flag.Parse()
+
+	if *apiURL != "" {
+		log.Printf("[!] apiUrl: %s.\n", *apiURL)
+	}
+	if *fromEmail != "" {
+		log.Printf("[!] fromEmail: %s.\n", *fromEmail)
+	}
+	if *fromEmailKey != "" {
+		log.Println("[!] fromEmailKey: fixed.")
+	}
+	if *toEmail != "" {
+		log.Printf("[!] toEmail: %s.\n", *toEmail)
+	}
+	if *logFile != "" {
+		log.Printf("[!] logFile: %s.\n", *logFile)
+	}
+	if *smtpHost != "" {
+		log.Printf("[!] smtpHost: %s.\n", *smtpHost)
+	}
+
+	emailService := NewSender(
+		*smtpHost,
+		*smtpPort,
+		*fromEmail,
+		*fromEmailKey,
+		*toEmail,
+	)
+
+	go emailService.Dispatcher()
 	var gpu GPU
+
 	for {
 		func() {
-			resp, err := http.Get(apiURL)
+			resp, err := http.Get(*apiURL)
 			if err != nil {
-				strs <- err.Error()
+				emailService.Messages("something was wrong")
+				log.Println(err.Error())
 				return
 			}
 			defer resp.Body.Close()
 
 			err = json.NewDecoder(resp.Body).Decode(&gpu)
 			if err != nil {
-				strs <- err.Error()
+				emailService.Messages("something was wrong")
+				log.Println(err.Error())
 				return
 			}
 
-			if gpu.OnSale {
-				emails <- struct{}{}
+			if !gpu.OnSale {
+				emailService.Messages("gpu in stock")
 			}
-			gpus <- gpu
+
+			log.Printf("name: %s onSale: %t\n", gpu.Name, gpu.OnSale)
 		}()
 		time.Sleep(timeToSleep)
 	}
