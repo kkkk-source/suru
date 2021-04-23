@@ -3,9 +3,15 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
 	"time"
+
+	"github.com/joho/godotenv"
 )
+
+const timeToSleep = 200 * time.Millisecond
 
 type GPU struct {
 	Name      string `json:"name"`
@@ -14,15 +20,17 @@ type GPU struct {
 	Orderable string `json:"orderable"`
 }
 
-const (
-	timeToSleep = 200 * time.Millisecond
-	apiKey      = "avS2W2GXy5rTERtEXAFdOjKO"
-	url         = "https://api.bestbuy.com/v1/products/6439402.json?show=name,onSale,active,inStoreAvailabilityUpdateDate,orderable&apiKey=" + apiKey
+var (
+	apiURL string
+	logs   = make(chan interface{})
 )
 
-var logs = make(chan interface{})
-
 func init() {
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+	apiURL = os.Getenv("apiUrl")
 	go recorder()
 }
 
@@ -39,7 +47,7 @@ func main() {
 	var gpu GPU
 	for {
 		func() {
-			resp, err := http.Get(url)
+			resp, err := http.Get(apiURL)
 			if err != nil {
 				logs <- err.Error()
 				return
