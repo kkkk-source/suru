@@ -13,7 +13,6 @@ func main() {
 		fromEmail    = flag.String("fromEmail", "", "Set the email sender.")
 		fromEmailKey = flag.String("fromEmailKey", "", "Set the email sender password.")
 		toEmail      = flag.String("toEmail", "", "Set the email receiver.")
-		logFile      = flag.String("logFile", "out", "Specify a log file.")
 		smtpHost     = flag.String("smtpHost", "smtp.gmail.com", "Specify the smtp host name to send messages.")
 		smtpPort     = flag.Int("smtpPort", 587, "Specify the smtp port to send messages.")
 	)
@@ -22,9 +21,9 @@ func main() {
 	if *apiURL != "" {
 		log.Printf("apiUrl: %s.\n", *apiURL)
 	}
-	if *logFile != "" {
-		log.Printf("logFile: %s.\n", *logFile)
-	}
+
+	loggerService := NewLoggerService()
+	go loggerService.Logger()
 
 	messagBrokrService := NewMessageBrokerService(
 		*smtpHost,
@@ -32,10 +31,12 @@ func main() {
 		*fromEmail,
 		*fromEmailKey,
 		*toEmail,
+		loggerService,
 	)
 	bestBuyService := NewBestBuyService(
 		*apiURL,
 		messagBrokrService,
+		loggerService,
 	)
 	bestBuyService.Run()
 }
