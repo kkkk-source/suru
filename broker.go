@@ -16,9 +16,15 @@ type MessageBroker struct {
 	dialer   *gomail.Dialer
 	message  *gomail.Message
 	messages chan string
+	logger   *LoggerService
 }
 
-func NewMessageBrokerService(host string, port int, username, password, to string) *MessageBroker {
+func NewMessageBrokerService(
+	host string,
+	port int,
+	username, password, to string,
+	logger *LoggerService,
+) *MessageBroker {
 	dialer := gomail.NewDialer(host, port, username, password)
 	dialer.TLSConfig = &tls.Config{ServerName: host, InsecureSkipVerify: false}
 	messages := make(chan string)
@@ -33,6 +39,7 @@ func NewMessageBrokerService(host string, port int, username, password, to strin
 		dialer:   dialer,
 		messages: messages,
 		message:  message,
+		logger:   logger,
 	}
 }
 
@@ -55,6 +62,6 @@ func (m *MessageBroker) dispatch(msg string) {
 	m.message.SetHeader("Subject", msg)
 	m.message.SetBody("text/plain", msg)
 	if err := m.dialer.DialAndSend(m.message); err != nil {
-		log.Printf(err.Error())
+		m.logger.SendMessage(err.Error())
 	}
 }
