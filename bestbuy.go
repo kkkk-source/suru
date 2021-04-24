@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -33,14 +34,22 @@ func (b *bestBuyService) Run() {
 		func() {
 			resp, err := http.Get(b.apiURL)
 			if err != nil {
-				b.broker.SendMessage("something was wrong")
+				b.broker.SendMessage(err.Error())
 				log.Println(err.Error())
 				return
 			}
 			defer resp.Body.Close()
+
+			if resp.StatusCode == http.StatusOK {
+				msg := fmt.Sprintf("status code %d", resp.StatusCode)
+				b.broker.SendMessage(msg)
+				log.Println(msg)
+				return
+			}
+
 			err = json.NewDecoder(resp.Body).Decode(&item)
 			if err != nil {
-				b.broker.SendMessage("something was wrong")
+				b.broker.SendMessage(err.Error())
 				log.Println(err.Error())
 				return
 			}
