@@ -7,7 +7,10 @@ import (
 	"time"
 )
 
-const timeToSleep = 200 * time.Millisecond
+const (
+	timeToSleep = 200 * time.Millisecond
+	maxAttempts = 10
+)
 
 type item struct {
 	Name   string `json:"name"`
@@ -48,7 +51,7 @@ func (b *bestBuyService) Run() {
 				conscutiveNotOKExecutes = 0
 			}
 
-			if conscutiveNotOKExecutes >= 10 {
+			if conscutiveNotOKExecutes >= maxAttempts {
 				msg := fmt.Sprintf("status code %d", resp.StatusCode)
 				b.broker.SendMessage(msg)
 				b.logger.SendMessage(msg)
