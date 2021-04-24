@@ -36,24 +36,24 @@ func NewMessageBrokerService(host string, port int, username, password, to strin
 	}
 }
 
-func (m *MessageBroker) SendMessage(message string) {
-	m.messages <- message
+func (m *MessageBroker) SendMessage(msg string) {
+	m.messages <- msg
 }
 
 func (m *MessageBroker) Dispatcher() {
 	for {
 		select {
-		case message := <-m.messages:
-			m.dispatch(message)
+		case msg := <-m.messages:
+			m.dispatch(msg)
 		}
 	}
 }
 
-func (m *MessageBroker) dispatch(message string) {
+func (m *MessageBroker) dispatch(msg string) {
 	log.Println("sending an email.")
 	m.message.SetHeader("To", m.to)
-	m.message.SetHeader("Subject", message)
-	m.message.SetBody("text/plain", message)
+	m.message.SetHeader("Subject", msg)
+	m.message.SetBody("text/plain", msg)
 	if err := m.dialer.DialAndSend(m.message); err != nil {
 		log.Printf(err.Error())
 	}
