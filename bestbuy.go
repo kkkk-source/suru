@@ -40,7 +40,7 @@ func (b *bestBuyService) Run() {
 			}
 			defer resp.Body.Close()
 
-			if resp.StatusCode == http.StatusOK {
+			if resp.StatusCode != http.StatusOK {
 				msg := fmt.Sprintf("status code %d", resp.StatusCode)
 				b.broker.SendMessage(msg)
 				log.Println(msg)
@@ -56,7 +56,6 @@ func (b *bestBuyService) Run() {
 			if item.OnSale {
 				b.broker.SendMessage("item on stock")
 			}
-			log.Printf("name: %s onSale: %t\n", item.Name, item.OnSale)
 		}()
 		time.Sleep(timeToSleep)
 	}
