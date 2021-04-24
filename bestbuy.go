@@ -54,7 +54,7 @@ func (b *bestBuyService) Run() {
 				return
 			}
 			if item.OnSale {
-				b.broker.SendMessage("itme on stock")
+				b.broker.SendMessage("item on stock")
 			}
 			log.Printf("name: %s onSale: %t\n", item.Name, item.OnSale)
 		}()
