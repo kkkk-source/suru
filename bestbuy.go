@@ -13,8 +13,8 @@ const (
 )
 
 type item struct {
-	Name   string `json:"name"`
-	OnSale bool   `json:"onSale"`
+	Name               string
+	OnlineAvailability bool
 }
 
 type bestBuyService struct {
@@ -32,9 +32,12 @@ func NewBestBuyService(apiURL string, messageBroker *MessageBroker, logger *Logg
 }
 
 func (b *bestBuyService) Run() {
-	go b.broker.Dispatcher()
 	conscutiveNotOKExecutes := 0
 	var item item
+	var msg string
+
+	go b.broker.Dispatcher()
+
 	for {
 		func() {
 			resp, err := http.Get(b.apiURL)
@@ -52,7 +55,7 @@ func (b *bestBuyService) Run() {
 			}
 
 			if conscutiveNotOKExecutes >= maxAttempts {
-				msg := fmt.Sprintf("status code %d", resp.StatusCode)
+				msg = fmt.Sprintf("status code %d", resp.StatusCode)
 				b.broker.SendMessage(msg)
 				b.logger.SendMessage(msg)
 				return
@@ -65,13 +68,12 @@ func (b *bestBuyService) Run() {
 				return
 			}
 
-			if item.OnSale {
-				msg := "item in stock"
+			if item.OnlineAvailability {
+				msg = "item in stock"
 				b.broker.SendMessage(msg)
 				b.logger.SendMessage(msg)
 			}
-
-			b.logger.SendMessage(fmt.Sprintf("%s - in stock: %t", item.Name, item.OnSale))
+			b.logger.SendMessage(fmt.Sprintf("%s - %t", item.Name, item.OnlineAvailability))
 		}()
 		time.Sleep(timeToSleep)
 	}
